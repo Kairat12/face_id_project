@@ -1,0 +1,66 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Caching
+*.db
+*.sqlite3
+*.log
+
+# Virtual environment
+venv/
+env/
+*.venv/
+.venv/
+pip-wheel-metadata/
+staticfiles/
+
+# Uncomment if you have a 'db.sqlite3' file
+# db.sqlite3
+
+# Uncomment if you have a 'local_settings.py' file
+# local_settings.py
+
+# Uncomment if you have a '.env' file
+# .env
+
+# IDE settings
+.vscode/
+.idea/
+
+# Docker
+docker-compose.yml
+Dockerfile
+
+# User-specific files
+*.suo
+*.user
+*.suo
+*.user
+*.suo
+*.user
+
+# Python
+*.pyc
+*.pyo
+*.pyc
+*.pyo
+
+# Environments
+.env
+.ebextensions/
+*.elasticbeanstalk/
+
+# Ignore pipenv virtual environment
+/.venv
+/staticfiles
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+

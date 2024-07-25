@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<h1>Успешная загрузка изображения</h1>
+    {% if image %}
+        <h3>Последнее загруженное изображение:</h3>
+        <img src="{{ image.image.url }}" alt="Загруженное изображение">
+        <p>Загружено пользователем: {{ image.user.username }}</p>
+    {% else %}
+        <p>Изображение не найдено.</p>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .video-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        #video {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        #error-message {
+            margin-top: 10px;
+        }
+
+        .face-indicator {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            pointer-events: none;
+        }
+
+        .face-indicator.valid {
+            border-color: green;
+        }
+
+        .face-indicator.invalid {
+            border-color: red;
+        }
+    </style>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            {% if request.user.is_authenticated %}
+                <div class="col-md-8 text-center">
+                    <h2>Привет, {{ profile.name }}</h2>
+                    <a href="{% url 'logout' %}" class="btn btn-danger mt-3">Выход</a>
+                </div>
+            {% else %}
+                <div class="col-md-8 text-center">
+                    <h2>Вход с Face ID</h2>
+                    <div class="video-container">
+                        <video id="video" width="640" height="480" class="mt-3" autoplay></video>
+                        <div id="face-indicator" class="face-indicator"></div>
+                    </div>
+                    <button id="snap" class="btn btn-primary mt-3">Вход с Face ID</button>
+                    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+                    <p id="error-message" class="text-danger mt-3"></p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async function () {
+            const video = document.getElementById('video');
+            const faceIndicator = document.getElementById('face-indicator');
+            const errorMessage = document.getElementById('error-message');
+
+            // Загрузка моделей
+            await faceapi.nets.tinyFaceDetector.loadFromUri('{% static 'weight' %}');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('{% static 'weight' %}');
+            await faceapi.nets.faceRecognitionNet.loadFromUri('{% static 'weight' %}');
+
+            // Настройка видеопотока
+            navigator.mediaDevices.getUserMedia({video: {}})
+                .then(function (stream) {
+                    video.srcObject = stream;
+                    video.onloadedmetadata = function () {
+                        video.play();
+                        startFaceDetection();
+                    };
+                })
+                .catch(function (err) {
+                    errorMessage.textContent = "Ошибка: Веб-камера недоступна. Пожалуйста, проверьте подключение или разрешите доступ к камере.";
+                    console.log("Ошибка: " + err);
+                });
+
+            // Функция для запуска детекции лиц
+            async function startFaceDetection() {
+                const canvas = faceapi.createCanvasFromMedia(video);
+                document.body.append(canvas);
+                faceapi.matchDimensions(canvas, {width: video.width, height: video.height});
+
+                setInterval(async () => {
+                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                        .withFaceLandmarks();
+
+                    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                    const resizedDetections = faceapi.resizeResults(detections, {
+                        width: video.width,
+                        height: video.height
+                    });
+
+                    if (resizedDetections.length > 0) {
+                        const {width, height, x, y} = resizedDetections[0].detection.box;
+                        updateFaceIndicator({width, height, x, y});
+                        faceIndicator.classList.remove('invalid');
+                        faceIndicator.classList.add('valid');
+                    } else {
+                        faceIndicator.classList.remove('valid');
+                        faceIndicator.classList.add('invalid');
+                    }
+                }, 100);
+            }
+
+            // Функция для обновления индикатора лица
+            function updateFaceIndicator(face) {
+                const videoRect = video.getBoundingClientRect();
+
+                const faceBoxWidth = face.width * (videoRect.width / video.width);
+                const faceBoxHeight = face.height * (videoRect.height / video.height);
+                const faceBoxX = face.x * (videoRect.width / video.width);
+                const faceBoxY = face.y * (videoRect.height / video.height);
+
+                faceIndicator.style.width = `${faceBoxWidth}px`;
+                faceIndicator.style.height = `${faceBoxHeight}px`;
+                faceIndicator.style.left = `${faceBoxX}px`;
+                faceIndicator.style.top = `${faceBoxY}px`;
+            }
+
+            // Обработка снимка
+            document.getElementById("snap").addEventListener("click", function () {
+                if (!video.srcObject) {
+                    errorMessage.textContent = "Ошибка: Веб-камера недоступна. Пожалуйста, проверьте подключение или разрешите доступ к камере.";
+                    return;
+                }
+
+                const canvas = document.getElementById('canvas');
+                const context = canvas.getContext('2d');
+                context.drawImage(video, 0, 0, 640, 480);
+                const dataURL = canvas.toDataURL('image/png');
+
+                // Отправка изображения на сервер
+                fetch('/login/face-id/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({image: dataURL})
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.href = data.redirect_url;
+                        } else {
+                            errorMessage.textContent = 'Ошибка: ' + (data.error || 'Аутентификация Face ID не удалась.');
+                        }
+                    })
+                    .catch(function (err) {
+                        errorMessage.textContent = "Ошибка: Не удалось отправить изображение на сервер.";
+                        console.log("Ошибка: " + err);
+                    });
+            });
+        });
+    </script>
+{% endblock %}
